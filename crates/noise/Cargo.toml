@@ -27,6 +27,6 @@ tokio-util.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
-# The in-process initiator half (`Handshake`) drives the responder in tests.
-ts_control_noise.workspace = true
+# `ts_control_noise` (the initiator `Handshake`) is already a normal dependency;
+# tests only need a fuller tokio.
 tokio = { workspace = true, features = ["full"] }

@@ -16,7 +16,7 @@ exclude = ["_refs/tailscale-rs"]
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-license = "BSD-3-Clause"
+license = "MIT"
 repository = "https://github.com/mdnmdn/oxiscale"
 rust-version = "1.96.0"
 
@@ -28,7 +28,9 @@ noise = { path = "crates/noise" }
 control-core = { path = "crates/control-core" }
 control-api = { path = "crates/control-api" }
 
-# tailscale-rs reference crates (submodule at _refs/tailscale-rs; wire up in phase-1 spike)
+# tailscale-rs reused crates. These are path deps into the `_refs/tailscale-rs`
+# git submodule — on a fresh clone run `just submodule` (or
+# `git submodule update --init --recursive`) first, or these paths won't exist.
 ts_keys = { path = "_refs/tailscale-rs/ts_keys" }
 ts_control_serde = { path = "_refs/tailscale-rs/ts_control_serde" }
 ts_noise = { path = "_refs/tailscale-rs/ts_noise" }

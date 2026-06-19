@@ -20,9 +20,12 @@ Documentation navigation and agent rules live in
 
 ```
 oxiscale/                          # Cargo workspace root
+├── README.md                      # project intro + Headscale attribution
+├── LICENSE                        # MIT (Oxiscale's own code)
+├── NOTICE                         # BSD-3 attributions (Headscale, tailscale-rs)
 ├── AGENTS.md                      # agent + contributor behavioural rules
 ├── justfile                       # common dev commands (`just --list`)
-├── Cargo.toml                     # workspace manifest
+├── Cargo.toml                     # workspace manifest (license = MIT)
 ├── rust-toolchain.toml            # pinned Rust (1.96.0)
 ├── crates/                        # library crates (bottom-up dependency order)
 │   ├── tailcfg/
@@ -87,7 +90,7 @@ started
 
 | Item | Status | Notes |
 |------|--------|-------|
-| `capver::MIN_SUPPORTED_CAPABILITY_VERSION` | **done** | constant = 113 (`u16`); `CapabilityVersion` reused from `ts_capabilityversion` |
+| `capver::MIN_SUPPORTED_CAPABILITY_VERSION` | **done** | constant = 113 (`u16`); `CapabilityVersion` reused from `ts_capabilityversion`; **enforced in `noise::accept`** (clients below it are rejected) |
 | `protocol` (paths, EarlyNoise magic, keepalive) | **done** | fixed: magic is 5 bytes `\xff\xff\xffTS`, upgrade token `tailscale-control-protocol` |
 | `OverTLSPublicKeyResponse`, `EarlyNoise` | **done** | hand-written (server-emitted; not in `ts_control_serde`); PascalCase casing **confirmed against real `tailscaled`** at the gate |
 | `MapRequest`, `MapResponse`, `RegisterRequest`, … | **done** | re-exported from `ts_control_serde` |
@@ -97,14 +100,13 @@ started
 
 | Item | Status | Notes |
 |------|--------|-------|
-| `KeyError` | **stub** | retained; `ParseError` re-exported from `ts_keys` |
-| `MachinePublicKey/PrivateKey`, `NodePublicKey`, `DiscoPublicKey`, `ChallengePublicKey`, codecs | **done** | re-exported from `ts_keys` (reuse); round-trip + casing tests |
+| `MachinePublicKey/PrivateKey`, `NodePublicKey`, `DiscoPublicKey`, `ChallengePublicKey`, codecs | **done** | re-exported from `ts_keys` (reuse); round-trip + casing tests. Errors use `ts_keys::ParseError` (the dead `KeyError` stub was removed) |
 
 ### 3.3 `crates/noise` — TS2021 responder handshake
 
 | Item | Status | Notes |
 |------|--------|-------|
-| `NoiseError` | **done** | base64 / bad-initiation / handshake-failed / io |
+| `NoiseError` | **done** | base64 / bad-initiation / handshake-failed / unsupported-version / serde / io |
 | `accept()` responder (Noise IK msg1→msg2) | **done** | built on reused `ts_noise::ik::ReceivedHandshake`; in-process initiator (`ts_control_noise::Handshake`) completes + exchanges encrypted data |
 | EarlyNoise framing | **done** | `write_early_noise()` — 5-byte magic + u32 BE len + JSON; verified on wire |
 | Encrypted `AsyncRead+AsyncWrite` (`NoiseStream`) | **done** | `FramedIo` over `Framed<T, BiCodec>` (mirrors unexported `ts_control_noise` helper) |
@@ -116,8 +118,8 @@ started
 | Module | Status | Notes |
 |--------|--------|-------|
 | `store::traits::Store` | **done** | async trait, full CRUD surface |
-| `store::MemoryStore` | **partial** | working in-memory impl; needs conformance tests |
-| `store::FileStore` | **partial** | `open` + serde helpers; `load`/`flush` stubbed |
+| `store::MemoryStore` | **partial** | working in-memory impl; `consume_preauth_key` honours reusable + `expires_at` (tested); broader conformance suite still phase 2 |
+| `store::FileStore` | **done** | async `open` loads snapshot; `flush` writes atomically (temp+rename); JSON/YAML/TOML; persist+reload tested |
 | `store::types` | **partial** | domain structs with `network_id` seam |
 | `store::document::StoreDocument` | **done** | versioned snapshot envelope |
 | `state` | **stub** | NodeStore (`ArcSwap`) — phase 3 |
@@ -134,7 +136,7 @@ started
 | Item | Status | Notes |
 |------|--------|-------|
 | `ControlServerBuilder` | **partial** | `store`, `listen`, `tenant_routing`, `server_key`; builds + serves |
-| `ControlServer` | **partial** | holds store + Noise key; `serve()` binds + runs `control-core::server` |
+| `ControlServer` | **partial** | holds store + Noise key + `tenant_routing`; `serve()` threads the store into `ServerState` (read by phase-2 register/auth) |
 | `TenantRouting` | **done** | subdomain / path / mTLS flags |
 | `Event` | **stub** | enum defined; no broadcast stream yet |
 | `Network`, `PreAuthKey`, `NodeHandle` | **planned** | phase 5 |
@@ -152,8 +154,8 @@ are specified in [06-e2e-test.md](06-e2e-test.md).
 
 | Area | Status |
 |------|--------|
-| Unit tests per crate | **planned** — required for every new feature |
-| `Store` conformance suite | **planned** — phase 2 |
+| Unit tests per crate | **in progress** — 24 passing (tskey codecs, tailcfg JSON, noise handshake + capver reject, store preauth + FileStore persist) |
+| `Store` conformance suite | **planned** — phase 2 (preauth + FileStore persist/reload covered now) |
 | Wire golden fixtures | **planned** — phase 1+ |
 | In-process server smoke (`control-core/tests/server_smoke.rs`) | **done** — `/key` + `/ts2021` + handshake + EarlyNoise via hyper client + reused initiator |
 | E2E suite (`e2e/`, see [06](06-e2e-test.md)) | **planned** — one scenario per phase (manual one-off done for E2E-1) |

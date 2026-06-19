@@ -8,10 +8,6 @@
 
 #![forbid(unsafe_code)]
 
-pub mod error;
-
-pub use error::KeyError;
-
 // Curve25519 key types + text codecs, reused from the Tailscale Rust client.
 //
 // Note the challenge key: the *client* never holds the private half, so

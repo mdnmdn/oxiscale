@@ -64,6 +64,13 @@ where
         return Err(NoiseError::BadInitiation("initiation too short"));
     }
     let capability_version = u16::from_be_bytes([raw[0], raw[1]]);
+    let min = tailcfg::capver::MIN_SUPPORTED_CAPABILITY_VERSION;
+    if capability_version < min {
+        return Err(NoiseError::UnsupportedVersion {
+            got: capability_version,
+            min,
+        });
+    }
     if raw[2] != MessageType::Initiation as u8 {
         return Err(NoiseError::BadInitiation("not an initiation message"));
     }
@@ -122,7 +129,7 @@ pub async fn write_early_noise<S>(
 where
     S: AsyncWrite + Unpin,
 {
-    let json = serde_json::to_vec(frame).expect("EarlyNoise always serializes");
+    let json = serde_json::to_vec(frame)?;
     let mut buf = Vec::with_capacity(EARLY_NOISE_MAGIC.len() + 4 + json.len());
     buf.extend_from_slice(&EARLY_NOISE_MAGIC);
     buf.extend_from_slice(&(json.len() as u32).to_be_bytes());
@@ -232,6 +239,26 @@ mod tests {
 
         let server_challenge = server_task.await.unwrap();
         assert_eq!(parsed.node_key_challenge, server_challenge);
+    }
+
+    #[tokio::test]
+    async fn capability_version_below_minimum_is_rejected() {
+        let server = MachineKeyPair::new();
+        let client = MachineKeyPair::new();
+        // V112 is one below the supported floor (113); the initiation carries it
+        // in cleartext, so the server rejects before running the crypto.
+        let capver = CapabilityVersion::V112;
+        let prologue = prologue_for(capver);
+        let (_handshake, init_b64) =
+            Handshake::initialize(&prologue, &client.private, &server.public, capver);
+
+        let (client_io, server_io) = tokio::io::duplex(64 * 1024);
+        let _keep = client_io;
+        let result = accept(server_io, &server.private, &init_b64).await;
+        assert!(matches!(
+            result,
+            Err(NoiseError::UnsupportedVersion { got: 112, min: 113 })
+        ));
     }
 
     #[tokio::test]

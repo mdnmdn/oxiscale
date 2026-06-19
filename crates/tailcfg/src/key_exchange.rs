@@ -4,10 +4,11 @@
 //! client's view); the control server emits them, so we define them here with
 //! the exact JSON casing the real Go server produces.
 //!
-//! NOTE (byte-fidelity, phase-1 gate): the casing below follows
-//! [05-protocol-reference.md] §3.1/§4.3 — Go marshals these structs with no
-//! explicit JSON tags, yielding PascalCase field names. Confirm against a live
-//! `GET /key` capture from the Go server before freezing.
+//! Byte-fidelity: the casing below follows [05-protocol-reference.md] §3.1/§4.3
+//! — Go marshals these structs with no explicit JSON tags, yielding PascalCase
+//! field names. Confirmed at the phase-1 gate: a real `tailscaled` (capver 138)
+//! fetched `/key` and completed the handshake against these exact bytes. The
+//! unit tests below pin the JSON to guard against regressions.
 
 use serde::{Deserialize, Serialize};
 use tskey::{ChallengePublicKey, MachinePublicKey};

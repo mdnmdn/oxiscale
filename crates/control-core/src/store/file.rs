@@ -29,24 +29,28 @@ impl Format {
 
 /// File-backed store: whole-document snapshots with write-temp-then-rename.
 pub struct FileStore {
-    #[allow(dead_code)]
     path: PathBuf,
     format: Format,
     memory: MemoryStore,
 }
 
 impl FileStore {
-    pub fn open(path: impl Into<PathBuf>) -> Result<Self, StoreError> {
+    /// Open a snapshot file, loading its contents if it already exists.
+    ///
+    /// A missing file is not an error — it yields an empty store that
+    /// [`flush`](Self::flush) will create on first write.
+    pub async fn open(path: impl Into<PathBuf>) -> Result<Self, StoreError> {
         let path = path.into();
         let format = Format::from_path(&path).ok_or(StoreError::Serde(
             "unsupported file extension; use .json, .yaml, .yml, or .toml".into(),
         ))?;
-        let memory = MemoryStore::new();
-        Ok(Self {
+        let store = Self {
             path,
             format,
-            memory,
-        })
+            memory: MemoryStore::new(),
+        };
+        store.load().await?;
+        Ok(store)
     }
 
     pub fn with_format(mut self, format: Format) -> Self {
@@ -54,15 +58,30 @@ impl FileStore {
         self
     }
 
+    /// Load the snapshot from disk into memory, replacing current state.
+    /// A missing file is treated as an empty (fresh) store.
     pub async fn load(&self) -> Result<(), StoreError> {
-        Err(StoreError::NotImplemented)
+        let bytes = match std::fs::read(&self.path) {
+            Ok(bytes) => bytes,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(e) => return Err(StoreError::Io(e)),
+        };
+        let doc = self.deserialize(&bytes)?;
+        self.memory.replace(doc).await;
+        Ok(())
     }
 
+    /// Persist the current in-memory state to disk atomically
+    /// (write to a temp file in the same directory, then rename over the target).
     pub async fn flush(&self) -> Result<(), StoreError> {
-        Err(StoreError::NotImplemented)
+        let doc = self.memory.snapshot().await;
+        let bytes = self.serialize(&doc)?;
+        let tmp = self.path.with_extension("tmp");
+        std::fs::write(&tmp, &bytes)?;
+        std::fs::rename(&tmp, &self.path)?;
+        Ok(())
     }
 
-    #[allow(dead_code)]
     fn serialize(&self, doc: &StoreDocument) -> Result<Vec<u8>, StoreError> {
         match self.format {
             Format::Json => {
@@ -74,6 +93,22 @@ impl FileStore {
             Format::Toml => toml::to_string_pretty(doc)
                 .map(|s| s.into_bytes())
                 .map_err(|e| StoreError::Serde(e.to_string())),
+        }
+    }
+
+    fn deserialize(&self, bytes: &[u8]) -> Result<StoreDocument, StoreError> {
+        match self.format {
+            Format::Json => {
+                serde_json::from_slice(bytes).map_err(|e| StoreError::Serde(e.to_string()))
+            }
+            Format::Yaml => {
+                serde_yaml::from_slice(bytes).map_err(|e| StoreError::Serde(e.to_string()))
+            }
+            Format::Toml => {
+                let text = std::str::from_utf8(bytes)
+                    .map_err(|e| StoreError::Serde(format!("snapshot is not valid UTF-8: {e}")))?;
+                toml::from_str(text).map_err(|e| StoreError::Serde(e.to_string()))
+            }
         }
     }
 }
@@ -140,5 +175,65 @@ impl Store for FileStore {
     async fn set_policy(&self, network: NetworkId, policy: &str) -> Result<(), StoreError> {
         self.memory.set_policy(network, policy).await?;
         self.flush().await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_json_path() -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let mut p = std::env::temp_dir();
+        p.push(format!(
+            "oxiscale-filestore-{}-{}.json",
+            std::process::id(),
+            nanos
+        ));
+        p
+    }
+
+    fn sample_network() -> Network {
+        Network {
+            id: super::super::types::NetworkId(1),
+            name: "default".into(),
+            server_host: "ctl.local".into(),
+            ipv4_prefix: "100.64.0.0/10".into(),
+            ipv6_prefix: "fd7a:115c:a1e0::/48".into(),
+            noise_key_id: "k1".into(),
+            policy: None,
+            created_at: "2026-06-19T00:00:00Z".into(),
+        }
+    }
+
+    #[tokio::test]
+    async fn mutations_succeed_and_persist_across_reopen() {
+        let path = temp_json_path();
+
+        {
+            let store = FileStore::open(path.clone()).await.unwrap();
+            // The flush-after-mutate path must succeed (regression: it used to
+            // return NotImplemented).
+            store.upsert_network(&sample_network()).await.unwrap();
+        }
+
+        // A fresh instance loads the snapshot written above.
+        let reloaded = FileStore::open(path.clone()).await.unwrap();
+        let networks = reloaded.list_networks().await.unwrap();
+        assert_eq!(networks.len(), 1);
+        assert_eq!(networks[0].id, super::super::types::NetworkId(1));
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn open_missing_file_is_empty_not_an_error() {
+        let path = temp_json_path();
+        let store = FileStore::open(path).await.unwrap();
+        assert!(store.list_networks().await.unwrap().is_empty());
     }
 }

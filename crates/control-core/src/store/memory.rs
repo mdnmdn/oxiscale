@@ -33,6 +33,32 @@ impl MemoryStore {
             })),
         }
     }
+
+    /// Clone the whole document. Used by [`super::FileStore`] to snapshot state
+    /// before writing it to disk.
+    pub async fn snapshot(&self) -> StoreDocument {
+        self.inner.read().await.clone()
+    }
+
+    /// Replace the whole document. Used by [`super::FileStore`] when loading a
+    /// snapshot from disk at startup.
+    pub async fn replace(&self, doc: StoreDocument) {
+        *self.inner.write().await = doc;
+    }
+}
+
+/// Whether a pre-auth key has passed its `expires_at` instant.
+///
+/// `expires_at` is an RFC 3339 timestamp. A missing value never expires; an
+/// unparseable value is treated as expired (fail closed).
+fn preauth_key_expired(key: &PreAuthKey) -> bool {
+    match key.expires_at.as_deref() {
+        None => false,
+        Some(ts) => match chrono::DateTime::parse_from_rfc3339(ts) {
+            Ok(expiry) => expiry <= chrono::Utc::now(),
+            Err(_) => true,
+        },
+    }
 }
 
 #[async_trait]
@@ -139,7 +165,16 @@ impl Store for MemoryStore {
         let Some(key) = doc.preauth_keys.iter_mut().find(|k| k.id == id) else {
             return Ok(false);
         };
-        if key.used || key.reusable {
+        // Expired keys are never valid, reusable or not.
+        if preauth_key_expired(key) {
+            return Ok(false);
+        }
+        // Reusable keys are always consumable and are never flipped to `used`.
+        if key.reusable {
+            return Ok(true);
+        }
+        // Single-use keys consume exactly once.
+        if key.used {
             return Ok(false);
         }
         key.used = true;
@@ -157,5 +192,74 @@ impl Store for MemoryStore {
             .policies
             .insert(network, policy.to_owned());
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn key(id: u64, reusable: bool, expires_at: Option<&str>) -> PreAuthKey {
+        PreAuthKey {
+            id: PreAuthKeyId(id),
+            network_id: NetworkId(1),
+            prefix: format!("{id:012x}"),
+            secret_hash: "hash".into(),
+            reusable,
+            ephemeral: false,
+            used: false,
+            expires_at: expires_at.map(str::to_owned),
+            tags: Vec::new(),
+        }
+    }
+
+    #[tokio::test]
+    async fn single_use_key_consumes_exactly_once() {
+        let store = MemoryStore::new();
+        store
+            .upsert_preauth_key(&key(1, false, None))
+            .await
+            .unwrap();
+
+        assert!(store.consume_preauth_key(PreAuthKeyId(1)).await.unwrap());
+        assert!(!store.consume_preauth_key(PreAuthKeyId(1)).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn reusable_key_consumes_repeatedly_without_being_marked_used() {
+        let store = MemoryStore::new();
+        store.upsert_preauth_key(&key(2, true, None)).await.unwrap();
+
+        assert!(store.consume_preauth_key(PreAuthKeyId(2)).await.unwrap());
+        assert!(store.consume_preauth_key(PreAuthKeyId(2)).await.unwrap());
+
+        let stored = store.list_preauth_keys(NetworkId(1)).await.unwrap();
+        assert!(!stored[0].used, "reusable key must not be flipped to used");
+    }
+
+    #[tokio::test]
+    async fn expired_key_is_rejected() {
+        let store = MemoryStore::new();
+        store
+            .upsert_preauth_key(&key(3, false, Some("2000-01-01T00:00:00Z")))
+            .await
+            .unwrap();
+        assert!(!store.consume_preauth_key(PreAuthKeyId(3)).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn unexpired_key_is_accepted() {
+        let store = MemoryStore::new();
+        store
+            .upsert_preauth_key(&key(4, false, Some("2999-01-01T00:00:00Z")))
+            .await
+            .unwrap();
+        assert!(store.consume_preauth_key(PreAuthKeyId(4)).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn unknown_key_returns_false() {
+        let store = MemoryStore::new();
+        assert!(!store.consume_preauth_key(PreAuthKeyId(99)).await.unwrap());
     }
 }

@@ -9,7 +9,6 @@ rust-version.workspace = true
 
 [dependencies]
 ts_keys = { workspace = true, features = ["serde"] }
-thiserror.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true

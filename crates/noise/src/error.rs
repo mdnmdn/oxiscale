@@ -17,6 +17,14 @@ pub enum NoiseError {
     #[error("noise handshake authentication failed")]
     HandshakeFailed,
 
+    /// The client advertised a capability version below the server's minimum.
+    #[error("unsupported capability version {got} (minimum {min})")]
+    UnsupportedVersion { got: u16, min: u16 },
+
+    /// Failed to serialize a frame (e.g. EarlyNoise) before sending.
+    #[error("frame serialization failed")]
+    Serde(#[from] serde_json::Error),
+
     /// Underlying socket I/O error while writing the response or framing.
     #[error("noise transport I/O error")]
     Io(#[from] std::io::Error),

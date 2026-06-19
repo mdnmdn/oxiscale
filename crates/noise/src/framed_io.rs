@@ -1,3 +1,8 @@
+// This file is a derivative of `framed_io.rs` from `ts_control_noise` in
+// tailscale-rs (https://github.com/tailscale/tailscale-rs), which is licensed
+// under the BSD 3-Clause License, Copyright (c) 2026 Tailscale Inc &
+// contributors. See NOTICE and _refs/tailscale-rs/LICENSE.
+
 //! Bridge a `Stream<Item = Result<B, E>>` + `Sink<&[u8]>` into
 //! `AsyncRead + AsyncWrite`.
 //!

@@ -13,7 +13,9 @@
 //! in phases 2–3).
 
 use std::convert::Infallible;
+use std::sync::Arc;
 
+use crate::store::Store;
 use axum::{
     body::Body,
     extract::State,
@@ -52,12 +54,20 @@ pub enum ServerError {
 pub struct ServerState {
     /// The server's long-lived Noise static identity (the `MachineKey`).
     server_key: MachineKeyPair,
+    /// Persistence backend. Phase-1 handlers don't read it yet; the
+    /// register/auth paths in phase 2 will.
+    store: Arc<dyn Store>,
 }
 
 impl ServerState {
-    /// Build server state around the given Noise static keypair.
-    pub fn new(server_key: MachineKeyPair) -> Self {
-        Self { server_key }
+    /// Build server state around the Noise static keypair and persistence backend.
+    pub fn new(server_key: MachineKeyPair, store: Arc<dyn Store>) -> Self {
+        Self { server_key, store }
+    }
+
+    /// The persistence backend injected by the host (phase-2 register/auth).
+    pub fn store(&self) -> &Arc<dyn Store> {
+        &self.store
     }
 }
 

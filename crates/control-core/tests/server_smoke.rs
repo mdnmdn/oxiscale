@@ -8,8 +8,11 @@
 
 use std::net::SocketAddr;
 
+use std::sync::Arc;
+
 use bytes::Bytes;
 use control_core::server::{self, ServerState};
+use control_core::store::MemoryStore;
 use http_body_util::{BodyExt, Empty};
 use hyper::client::conn::http1;
 use hyper::{header, Method, Request, StatusCode};
@@ -24,8 +27,9 @@ use tskey::MachineKeyPair;
 async fn start_server(server_key: MachineKeyPair) -> SocketAddr {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
+    let state = ServerState::new(server_key, Arc::new(MemoryStore::new()));
     tokio::spawn(async move {
-        let _ = server::serve(listener, ServerState::new(server_key)).await;
+        let _ = server::serve(listener, state).await;
     });
     addr
 }

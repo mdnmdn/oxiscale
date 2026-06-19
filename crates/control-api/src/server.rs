@@ -85,11 +85,11 @@ impl ControlServerBuilder {
 
     pub fn build(self) -> Result<ControlServer, ApiError> {
         let store = self.store.ok_or(ApiError::MissingStore)?;
-        let _tenant_routing = self.tenant_routing;
         Ok(ControlServer {
             store,
             listen: self.listen.unwrap_or_else(|| DEFAULT_LISTEN.to_owned()),
             server_key: self.server_key.unwrap_or_default(),
+            tenant_routing: self.tenant_routing,
         })
     }
 }
@@ -99,6 +99,7 @@ pub struct ControlServer {
     store: Arc<dyn Store>,
     listen: String,
     server_key: MachineKeyPair,
+    tenant_routing: TenantRouting,
 }
 
 impl ControlServer {
@@ -120,6 +121,11 @@ impl ControlServer {
         &self.listen
     }
 
+    /// The configured tenant-routing strategy (applied from phase 5).
+    pub fn tenant_routing(&self) -> &TenantRouting {
+        &self.tenant_routing
+    }
+
     /// Bind the configured address and serve until shutdown.
     pub async fn serve(&self) -> Result<(), ApiError> {
         let listener = TcpListener::bind(&self.listen)
@@ -129,7 +135,11 @@ impl ControlServer {
                 source,
             })?;
         tracing::info!(addr = %self.listen, server_key = %self.server_key.public, "control server listening");
-        server::serve(listener, ServerState::new(self.server_key)).await?;
+        server::serve(
+            listener,
+            ServerState::new(self.server_key, self.store.clone()),
+        )
+        .await?;
         Ok(())
     }
 }
