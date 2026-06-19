@@ -1,0 +1,6 @@
+[submodule "_refs/tailscale-rs"]
+	path = _refs/tailscale-rs
+	url = https://github.com/tailscale/tailscale-rs
+[submodule "_refs/headscale"]
+	path = _refs/headscale
+	url = https://github.com/juanfont/headscale
