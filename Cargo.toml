@@ -1,0 +1,63 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/tailcfg",
+    "crates/tskey",
+    "crates/noise",
+    "crates/control-core",
+    "crates/control-api",
+    "bin/tailcontrold",
+]
+# `_refs/tailscale-rs` is its own (nested) Cargo workspace. Exclude it so its
+# crates inherit `.workspace = true` fields from their own root, not ours, when
+# we depend on them by path.
+exclude = ["_refs/tailscale-rs"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "BSD-3-Clause"
+repository = "https://github.com/mdnmdn/oxiscale"
+rust-version = "1.96.0"
+
+[workspace.dependencies]
+# Internal crates
+tailcfg = { path = "crates/tailcfg" }
+tskey = { path = "crates/tskey" }
+noise = { path = "crates/noise" }
+control-core = { path = "crates/control-core" }
+control-api = { path = "crates/control-api" }
+
+# tailscale-rs reference crates (submodule at _refs/tailscale-rs; wire up in phase-1 spike)
+ts_keys = { path = "_refs/tailscale-rs/ts_keys" }
+ts_control_serde = { path = "_refs/tailscale-rs/ts_control_serde" }
+ts_noise = { path = "_refs/tailscale-rs/ts_noise" }
+ts_control_noise = { path = "_refs/tailscale-rs/ts_control_noise" }
+ts_capabilityversion = { path = "_refs/tailscale-rs/ts_capabilityversion" }
+
+# Shared third-party
+anyhow = "1"
+async-trait = "0.1"
+axum = "0.8"
+http-body-util = "0.1"
+hyper = "1"
+hyper-util = { version = "0.1", features = ["tokio"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+thiserror = "2"
+tokio = { version = "1", features = ["full"] }
+toml = "0.8"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Noise transport deps. `bytes` (1.x) and `x25519-dalek` must unify with the
+# versions the `ts_*` crates use, or the shared types (BytesMut, StaticSecret)
+# won't line up across the crate boundary — keep them matched to
+# `_refs/tailscale-rs/Cargo.lock`.
+base64 = "0.22"
+bytes = "1"
+futures-util = { version = "0.3", default-features = false }
+pin-project-lite = "0.2"
+tokio-util = { version = "0.7", features = ["codec"] }
+x25519-dalek = { version = "3.0.0-pre.6", features = ["getrandom", "static_secrets"] }

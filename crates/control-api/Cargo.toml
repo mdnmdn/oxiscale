@@ -1,0 +1,15 @@
+[package]
+name = "control-api"
+description = "Public embedding API for the Tailscale control server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+control-core.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tskey.workspace = true
+tracing.workspace = true

@@ -1,0 +1,32 @@
+[package]
+name = "noise"
+description = "TS2021 Noise IK handshake (server/responder side)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+tailcfg.workspace = true
+tskey.workspace = true
+
+# Noise IK crypto + controlbase framing, reused from the Tailscale Rust client.
+ts_noise.workspace = true
+ts_control_noise.workspace = true
+x25519-dalek.workspace = true
+
+base64.workspace = true
+bytes.workspace = true
+futures-util.workspace = true
+pin-project-lite.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["io-util"] }
+tokio-util.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+# The in-process initiator half (`Handshake`) drives the responder in tests.
+ts_control_noise.workspace = true
+tokio = { workspace = true, features = ["full"] }

@@ -1,0 +1,17 @@
+[package]
+name = "tailcfg"
+description = "Tailscale control-plane wire types (tailcfg)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde.workspace = true
+tskey.workspace = true
+ts_control_serde.workspace = true
+ts_capabilityversion = { workspace = true, features = ["serde"] }
+
+[dev-dependencies]
+serde_json.workspace = true

@@ -1,0 +1,15 @@
+[package]
+name = "tskey"
+description = "Tailscale cryptographic key types and text codecs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+ts_keys = { workspace = true, features = ["serde"] }
+thiserror.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

@@ -1,0 +1,36 @@
+[package]
+name = "control-core"
+description = "Tailscale control plane: state, persistence, mapper, policy, HTTP routes"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+noise.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+tailcfg.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+toml.workspace = true
+tskey.workspace = true
+
+# HTTP edge (HTTP/1.1 routes + upgrade) and HTTP/2-over-Noise server.
+axum.workspace = true
+bytes.workspace = true
+http-body-util.workspace = true
+hyper = { workspace = true, features = ["server", "http1", "http2"] }
+hyper-util.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+# In-process gate: low-level hyper client + the reused initiator handshake.
+hyper = { workspace = true, features = ["client", "http1"] }
+http-body-util.workspace = true
+hyper-util.workspace = true
+ts_control_noise.workspace = true
+tokio = { workspace = true, features = ["full"] }
